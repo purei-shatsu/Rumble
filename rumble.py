@@ -21,14 +21,14 @@ had_right = False
 
 num_buttons = joystick.get_numbuttons()
 
-enable_arrows = False
+enable_extra_controls = False
 
 def toggle_arrows(e):
-    global enable_arrows
-    enable_arrows = not enable_arrows
-    print("Arrows Enabled: {}".format(enable_arrows))
+    global enable_extra_controls
+    enable_extra_controls = not enable_extra_controls
+    print("Arrows Enabled: {}".format(enable_extra_controls))
 
-keyboard.on_press_key('space', toggle_arrows)
+keyboard.on_press_key('f8', toggle_arrows)
 
 while True:
     for j in range(5):
@@ -52,6 +52,7 @@ while True:
                         sub_rumble_on = False
                         switch_rumble = False
                         all_on = False
+                        break_cycle = True
                     
                     # Triangle
                     if event.button == 3:
@@ -59,27 +60,49 @@ while True:
                         switch_rumble = False
                         sub_rumble_on = True
                         all_on = False
+                        break_cycle = True
                     
                     # Square
                     if event.button == 2:
                         rumble_on = True
                         switch_rumble = True
                         all_on = False
+                        break_cycle = True
                     
                     # Circle
                     if event.button == 1:
                         rumble_on = False
                         all_on = False
+                        break_cycle = True
                     
                     # R1
                     if event.button == 10:
                         rumble_on = True
                         all_on = True
+                        break_cycle = True
                     
-                    break_cycle = True
-                    break
+                    # RECTANGLE
+                    if event.button == 15 and enable_extra_controls:
+                        # Press Windows logo + Ctrl + O
+                        keyboard_presser.press(Key.cmd)
+                        keyboard_presser.press(Key.ctrl)
+                        keyboard_presser.press('o')
+                        keyboard_presser.release('o')
+                        keyboard_presser.release(Key.ctrl)
+                        keyboard_presser.release(Key.cmd)
+                    
+                    # L1
+                    if event.button == 9 and enable_extra_controls:
+                        # press Alt + Tab
+                        keyboard_presser.press(Key.alt)
+                        keyboard_presser.press(Key.tab)
+                        keyboard_presser.release(Key.tab)
+                        keyboard_presser.release(Key.alt)
 
-                if enable_arrows:
+                    if break_cycle:
+                        break
+
+                if enable_extra_controls:
                     # left key
                     left_stick_horizontal = joystick.get_axis(0)
                     right_stick_horizontal = joystick.get_axis(2)
