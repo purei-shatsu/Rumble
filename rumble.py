@@ -2,6 +2,7 @@ import sys
 import pygame
 from pynput.keyboard import Key, Controller
 import keyboard
+import random
 
 pygame.init()
 pygame.joystick.init()
@@ -28,10 +29,25 @@ def toggle_arrows(e):
     enable_extra_controls = not enable_extra_controls
     print("Arrows Enabled: {}".format(enable_extra_controls))
 
+def reset_joystick():
+    try:
+        pygame.init()
+        pygame.joystick.init()
+        global joystick
+        joystick = pygame.joystick.Joystick(0)
+        joystick.init()
+        print("Reset Joystick")
+    except:
+        print("Failed to reset joystick")
+
 keyboard.on_press_key('f8', toggle_arrows)
 
 while True:
-    for j in range(5):
+    if sub_rumble_on:
+        iterations = 4
+    else:
+        iterations = random.randint(5, 7)
+    for j in range(iterations):
         if rumble_on:
             # Start a rumble effect on the joystick 
             joystick.rumble(int(all_on or not sub_rumble_on), int(all_on or sub_rumble_on), 1000)
@@ -127,6 +143,9 @@ while True:
                     else:
                         had_right = False
 
+                if event.type == pygame.JOYDEVICEADDED:
+                    reset_joystick()
+
             if break_cycle:
                 break
 
@@ -135,5 +154,11 @@ while True:
         if break_cycle:
             break
 
-    if switch_rumble:
+    # switch with a chance (not using)
+    if sub_rumble_on:
+        chance = 1
+    else:
+        chance = 1
+        
+    if switch_rumble and random.random() < chance:
         sub_rumble_on = not sub_rumble_on
