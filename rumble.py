@@ -12,8 +12,33 @@ pygame.joystick.init()
 
 keyboard_presser = Controller()
 
-joystick = pygame.joystick.Joystick(0)
-joystick.init()
+def init_joysticks():
+    js_list = []
+    for i in range(pygame.joystick.get_count()):
+        js = pygame.joystick.Joystick(i)
+        js.init()
+        js_list.append(js)
+        print(f"  [{i}] {js.get_name()} (guid={js.get_guid()})")
+    print(f"Initialized {len(js_list)} joystick(s)")
+    return js_list
+
+joysticks = init_joysticks()
+
+
+def rumble_all(left, right, duration):
+    for js in joysticks:
+        try:
+            js.rumble(left, right, duration)
+        except Exception as e:
+            print(f"rumble failed on {js.get_name()}: {e}")
+
+
+def stop_rumble_all():
+    for js in joysticks:
+        try:
+            js.stop_rumble()
+        except Exception as e:
+            print(f"stop_rumble failed on {js.get_name()}: {e}")
 
 rumble_on = False
 sub_rumble_on = False
@@ -24,7 +49,7 @@ all_on = False
 had_left = False
 had_right = False
 
-num_buttons = joystick.get_numbuttons()
+num_buttons = joysticks[0].get_numbuttons() if joysticks else 0
 
 enable_extra_controls = False
 
@@ -39,9 +64,8 @@ def reset_joystick():
 
         pygame.init()
         pygame.joystick.init()
-        global joystick
-        joystick = pygame.joystick.Joystick(0)
-        joystick.init()
+        global joysticks
+        joysticks = init_joysticks()
 
         print("Reset Joystick")
     except:
@@ -55,6 +79,7 @@ pattern_periods = {
     3: 600,    # swap cycle length
     4: 200,    # strong/weak alternating pattern tick length
     5: 200,    # square pattern: same timing as L1, but strong/weak
+    6: 200,    # triangle pattern: constant weak (the weak part of square)
 }
 
 pattern_names = {
@@ -64,6 +89,7 @@ pattern_names = {
     3: "Swap",
     4: "Strong/Weak Alternating",
     5: "Strong/Weak Alternating (Square)",
+    6: "Constant Weak (Triangle)",
 }
 
 # Weak vibration level used during the "off" phase of the square pattern
@@ -125,6 +151,9 @@ def sample_pattern(index, current_time):
         else:
             return 0, 0  # no vibration
 
+    elif index == 6:  # constant weak (the weak part of square, never strong)
+        return WEAK_LEVEL, WEAK_LEVEL
+
     return 0, 0
 
 
@@ -143,11 +172,10 @@ while True:
         if pattern_index > 0:
             current_time = pygame.time.get_ticks()
             left_motor, right_motor = sample_pattern(pattern_index, current_time)
-            joystick.rumble(left_motor, right_motor, 1000)
+            rumble_all(left_motor, right_motor, 1000)
         else:
             if rumble_on:
-                # Start a rumble effect on the joystick 
-                joystick.rumble(int(all_on or not sub_rumble_on), int(all_on or sub_rumble_on), 1000)
+                rumble_all(int(all_on or not sub_rumble_on), int(all_on or sub_rumble_on), 1000)
         
         for i in range(20):
             # Wait for the effect to finish
@@ -173,10 +201,11 @@ while True:
                         if event.button == 3:
                             rumble_on = True
                             switch_rumble = False
-                            sub_rumble_on = True
+                            sub_rumble_on = False
                             all_on = False
                             break_cycle = True
-                            pattern_index = 0
+                            pattern_index = 6
+                            print("Selected Pattern: {}".format(pattern_names[pattern_index]))
                         
                         # Square
                         if event.button == 2:
@@ -233,10 +262,10 @@ while True:
 
                     if enable_extra_controls:
                         # left key
-                        left_stick_horizontal = joystick.get_axis(0)
-                        right_stick_horizontal = joystick.get_axis(2)
-                        left_stick_vertical = joystick.get_axis(1)
-                        right_stick_vertical = joystick.get_axis(3)
+                        left_stick_horizontal = joysticks[0].get_axis(0)
+                        right_stick_horizontal = joysticks[0].get_axis(2)
+                        left_stick_vertical = joysticks[0].get_axis(1)
+                        right_stick_vertical = joysticks[0].get_axis(3)
                         if left_stick_horizontal < -0.5 or right_stick_horizontal < -0.5 or left_stick_vertical < -0.5 or right_stick_vertical < -0.5:
                             if not had_left:
                                 had_left = True
@@ -266,7 +295,7 @@ while True:
                 break
 
         # Stop the rumble effect
-        joystick.stop_rumble()
+        stop_rumble_all()
         if break_cycle:
             break
 
