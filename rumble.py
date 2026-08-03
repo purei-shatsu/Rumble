@@ -1,6 +1,8 @@
 import sys
+import math
 import pygame
 from pynput.keyboard import Key, Controller
+from pynput.mouse import Button, Controller as MouseController
 import keyboard
 import random
 
@@ -11,6 +13,7 @@ pygame.init()
 pygame.joystick.init()
 
 keyboard_presser = Controller()
+mouse_presser = MouseController()
 
 def init_joysticks():
     js_list = []
@@ -46,9 +49,13 @@ pattern_index = 0
 switch_rumble = True
 all_on = False
 
+TICK_MS = 20            # poll interval, kept at TICK_MS * TICKS_PER_CYCLE = rumble duration
+TICKS_PER_CYCLE = 50
 REPEAT_DELAY = 400      # ms held before a direction starts repeating
 REPEAT_INTERVAL = 50    # ms between repeats afterwards
 TRIGGER_THRESHOLD = 0.0 # L2/R2 axis value counted as pressed
+MOUSE_DEADZONE = 0.15
+MOUSE_SPEED = 14        # pixels per tick at full deflection
 
 held_keys = {}
 
@@ -87,21 +94,49 @@ def hold_key(key, name, active):
     held_modifiers[key] = active
 
 
+left_click_down = False
+
+def set_left_click(active):
+    global left_click_down
+    if active == left_click_down:
+        return
+
+    if active:
+        print("Mouse_presser: Left click down")
+        mouse_presser.press(Button.left)
+    else:
+        mouse_presser.release(Button.left)
+    left_click_down = active
+
+
 def release_modifiers():
     for key in list(held_modifiers):
         hold_key(key, "modifier", False)
+    set_left_click(False)
+
+
+def axis_to_speed(value):
+    if abs(value) < MOUSE_DEADZONE:
+        return 0
+
+    # rescale past the deadzone so motion eases in, then square it for fine control near centre
+    scaled = (abs(value) - MOUSE_DEADZONE) / (1 - MOUSE_DEADZONE)
+    return int(round(math.copysign(scaled * scaled * MOUSE_SPEED, value)))
 
 
 def poll_axes():
     left_stick_horizontal = joysticks[0].get_axis(0)
-    right_stick_horizontal = joysticks[0].get_axis(2)
     left_stick_vertical = joysticks[0].get_axis(1)
-    right_stick_vertical = joysticks[0].get_axis(3)
 
-    press_held(Key.left, "Left", left_stick_horizontal < -0.5 or right_stick_horizontal < -0.5)
-    press_held(Key.right, "Right", left_stick_horizontal > 0.5 or right_stick_horizontal > 0.5)
-    press_held(Key.up, "Up", left_stick_vertical < -0.5 or right_stick_vertical < -0.5)
-    press_held(Key.down, "Down", left_stick_vertical > 0.5 or right_stick_vertical > 0.5)
+    press_held(Key.left, "Left", left_stick_horizontal < -0.5)
+    press_held(Key.right, "Right", left_stick_horizontal > 0.5)
+    press_held(Key.up, "Up", left_stick_vertical < -0.5)
+    press_held(Key.down, "Down", left_stick_vertical > 0.5)
+
+    move_x = axis_to_speed(joysticks[0].get_axis(2))
+    move_y = axis_to_speed(joysticks[0].get_axis(3))
+    if move_x or move_y:
+        mouse_presser.move(move_x, move_y)
 
     # triggers rest at -1.0 and reach 1.0 fully pressed
     hold_key(Key.alt, "Alt", joysticks[0].get_axis(4) > TRIGGER_THRESHOLD)
@@ -109,7 +144,7 @@ def poll_axes():
 
 num_buttons = joysticks[0].get_numbuttons() if joysticks else 0
 
-enable_extra_controls = False
+enable_extra_controls = True
 
 def toggle_arrows(e):
     global enable_extra_controls
@@ -174,7 +209,6 @@ def sample_pattern(index, current_time):
             return 1, 1
 
     elif index == 1:  # wave
-        import math
         strength = (math.sin(2 * math.pi * t) + 1) / 2
         return strength, strength
 
@@ -237,9 +271,9 @@ while True:
             if rumble_on:
                 rumble_all(int(all_on or not sub_rumble_on), int(all_on or sub_rumble_on), 1000)
         
-        for i in range(20):
+        for i in range(TICKS_PER_CYCLE):
             # Wait for the effect to finish
-            pygame.time.wait(50)
+            pygame.time.wait(TICK_MS)
 
             break_cycle = False
             try:
@@ -290,6 +324,10 @@ while True:
                             break_cycle = True
                             pattern_index = 0
                         
+                        # R3
+                        if event.button == 8 and enable_extra_controls:
+                            set_left_click(True)
+
                         # RECTANGLE
                         if event.button == 15 and enable_extra_controls:
                             # Press Windows logo + Ctrl + O
@@ -319,6 +357,9 @@ while True:
 
                         if break_cycle:
                             break
+
+                    if event.type == pygame.JOYBUTTONUP and event.button == 8:
+                        set_left_click(False)
 
                     if event.type == pygame.JOYDEVICEADDED:
                         reset_joystick()
