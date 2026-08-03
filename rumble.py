@@ -52,10 +52,10 @@ all_on = False
 TICK_MS = 20            # poll interval, kept at TICK_MS * TICKS_PER_CYCLE = rumble duration
 TICKS_PER_CYCLE = 50
 REPEAT_DELAY = 400      # ms held before a direction starts repeating
-REPEAT_INTERVAL = 50    # ms between repeats afterwards
+REPEAT_INTERVAL = 25    # ms between repeats afterwards
 TRIGGER_THRESHOLD = 0.0 # L2/R2 axis value counted as pressed
 MOUSE_DEADZONE = 0.15
-MOUSE_SPEED = 14        # pixels per tick at full deflection
+MOUSE_SPEED = 28        # pixels per tick at full deflection
 
 held_keys = {}
 
