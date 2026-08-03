@@ -46,8 +46,66 @@ pattern_index = 0
 switch_rumble = True
 all_on = False
 
-had_left = False
-had_right = False
+REPEAT_DELAY = 400      # ms held before a direction starts repeating
+REPEAT_INTERVAL = 50    # ms between repeats afterwards
+TRIGGER_THRESHOLD = 0.0 # L2/R2 axis value counted as pressed
+
+held_keys = {}
+
+def press_held(key, name, active):
+    if not active:
+        held_keys.pop(key, None)
+        return
+
+    now = pygame.time.get_ticks()
+    next_fire = held_keys.get(key)
+    if next_fire is None:
+        print("Keyboard_presser: {}".format(name))
+        next_fire = now + REPEAT_DELAY
+    elif now >= next_fire:
+        next_fire = now + REPEAT_INTERVAL
+    else:
+        return
+
+    keyboard_presser.press(key)
+    keyboard_presser.release(key)
+    held_keys[key] = next_fire
+
+
+held_modifiers = {}
+
+def hold_key(key, name, active):
+    if active == held_modifiers.get(key, False):
+        return
+
+    if active:
+        print("Keyboard_presser: {} down".format(name))
+        keyboard_presser.press(key)
+    else:
+        print("Keyboard_presser: {} up".format(name))
+        keyboard_presser.release(key)
+    held_modifiers[key] = active
+
+
+def release_modifiers():
+    for key in list(held_modifiers):
+        hold_key(key, "modifier", False)
+
+
+def poll_axes():
+    left_stick_horizontal = joysticks[0].get_axis(0)
+    right_stick_horizontal = joysticks[0].get_axis(2)
+    left_stick_vertical = joysticks[0].get_axis(1)
+    right_stick_vertical = joysticks[0].get_axis(3)
+
+    press_held(Key.left, "Left", left_stick_horizontal < -0.5 or right_stick_horizontal < -0.5)
+    press_held(Key.right, "Right", left_stick_horizontal > 0.5 or right_stick_horizontal > 0.5)
+    press_held(Key.up, "Up", left_stick_vertical < -0.5 or right_stick_vertical < -0.5)
+    press_held(Key.down, "Down", left_stick_vertical > 0.5 or right_stick_vertical > 0.5)
+
+    # triggers rest at -1.0 and reach 1.0 fully pressed
+    hold_key(Key.alt, "Alt", joysticks[0].get_axis(4) > TRIGGER_THRESHOLD)
+    press_held(Key.tab, "Tab", joysticks[0].get_axis(5) > TRIGGER_THRESHOLD)
 
 num_buttons = joysticks[0].get_numbuttons() if joysticks else 0
 
@@ -56,6 +114,8 @@ enable_extra_controls = False
 def toggle_arrows(e):
     global enable_extra_controls
     enable_extra_controls = not enable_extra_controls
+    if not enable_extra_controls:
+        release_modifiers()
     print("Arrows Enabled: {}".format(enable_extra_controls))
 
 def reset_joystick():
@@ -260,34 +320,12 @@ while True:
                         if break_cycle:
                             break
 
-                    if enable_extra_controls:
-                        # left key
-                        left_stick_horizontal = joysticks[0].get_axis(0)
-                        right_stick_horizontal = joysticks[0].get_axis(2)
-                        left_stick_vertical = joysticks[0].get_axis(1)
-                        right_stick_vertical = joysticks[0].get_axis(3)
-                        if left_stick_horizontal < -0.5 or right_stick_horizontal < -0.5 or left_stick_vertical < -0.5 or right_stick_vertical < -0.5:
-                            if not had_left:
-                                had_left = True
-                                print("Keyboard_presser: Left")
-                                keyboard_presser.press(Key.left)
-                                keyboard_presser.release(Key.left)
-                        else:
-                            had_left = False
-                        
-                        # right key
-                        if left_stick_horizontal > 0.5 or right_stick_horizontal > 0.5 or left_stick_vertical > 0.5 or right_stick_vertical > 0.5:
-                            if not had_right:
-                                had_right = True
-                                print("Keyboard_presser: Right")
-                                keyboard_presser.press(Key.right)
-                                keyboard_presser.release(Key.right)
-                        else:
-                            had_right = False
-
                     if event.type == pygame.JOYDEVICEADDED:
                         reset_joystick()
                         pygame.time.wait(1000)
+
+                if enable_extra_controls:
+                    poll_axes()
             except:
                 print("Error in event loop")
 
