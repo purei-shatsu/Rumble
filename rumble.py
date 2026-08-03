@@ -328,6 +328,16 @@ while True:
                         if event.button == 8 and enable_extra_controls:
                             set_left_click(True)
 
+                        # Share
+                        if event.button == 4 and enable_extra_controls:
+                            print("Mouse_presser: Previous page")
+                            mouse_presser.click(Button.x1)
+
+                        # Options
+                        if event.button == 6 and enable_extra_controls:
+                            print("Mouse_presser: Next page")
+                            mouse_presser.click(Button.x2)
+
                         # RECTANGLE
                         if event.button == 15 and enable_extra_controls:
                             # Press Windows logo + Ctrl + O
