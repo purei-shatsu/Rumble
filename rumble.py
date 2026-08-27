@@ -57,6 +57,20 @@ TRIGGER_THRESHOLD = 0.0 # L2/R2 axis value counted as pressed
 MOUSE_DEADZONE = 0.15
 MOUSE_SPEED = 28        # pixels per tick at full deflection
 
+SCORE_PATH = os.path.join(os.environ['LOCALAPPDATA'], 'ImageTagger', 'score.txt')
+
+score = 0
+
+def read_score():
+    global score
+
+    try:
+        with open(SCORE_PATH) as f:
+            score = int(f.read())
+    except Exception:
+        pass
+
+
 held_keys = {}
 
 def press_held(key, name, active):
@@ -144,7 +158,7 @@ def poll_axes():
 
 num_buttons = joysticks[0].get_numbuttons() if joysticks else 0
 
-enable_extra_controls = True
+enable_extra_controls = False
 
 def toggle_arrows(e):
     global enable_extra_controls
@@ -175,6 +189,7 @@ pattern_periods = {
     4: 200,    # strong/weak alternating pattern tick length
     5: 200,    # square pattern: same timing as L1, but strong/weak
     6: 200,    # triangle pattern: constant weak (the weak part of square)
+    7: 200,    # score pattern: unused, level is re-sampled every tick
 }
 
 pattern_names = {
@@ -185,17 +200,27 @@ pattern_names = {
     4: "Strong/Weak Alternating",
     5: "Strong/Weak Alternating (Square)",
     6: "Constant Weak (Triangle)",
+    7: "Score Driven",
 }
 
 # Weak vibration level used during the "off" phase of the square pattern
 WEAK_LEVEL = 0.4
 
+# The four vibration configurations, ordered by intensity
+SCORE_LEVELS = [
+    (0, 0),                       # stopped
+    (WEAK_LEVEL, WEAK_LEVEL),     # weak (triangle)
+    (1, 0),                       # strong (cross)
+    (1, 1),                       # very strong (R1)
+]
+
 # Track state for the strong/weak alternating pattern
 strong_active = False
 last_switch_time = 0
+last_score_level = None
 
 def sample_pattern(index, current_time):
-    global strong_active, last_switch_time
+    global strong_active, last_switch_time, last_score_level
 
     period = pattern_periods[index]
     t = (current_time % period) / period  # normalized time [0,1]
@@ -248,6 +273,21 @@ def sample_pattern(index, current_time):
     elif index == 6:  # constant weak (the weak part of square, never strong)
         return WEAK_LEVEL, WEAK_LEVEL
 
+    elif index == 7:  # score driven: 0-100 split into the four configurations
+        if score <= 40:
+            level = 0
+        elif score <= 70:
+            level = 1
+        elif score <= 90:
+            level = 2
+        else:
+            level = 3
+
+        if level != last_score_level:
+            print("Score {} -> {}".format(score, level))
+            last_score_level = level
+        return SCORE_LEVELS[level]
+
     return 0, 0
 
 
@@ -274,6 +314,14 @@ while True:
         for i in range(TICKS_PER_CYCLE):
             # Wait for the effect to finish
             pygame.time.wait(TICK_MS)
+            read_score()
+
+            # the score pattern reacts every tick instead of once per cycle
+            if pattern_index == 7:
+                motors = sample_pattern(pattern_index, pygame.time.get_ticks())
+                if motors != (left_motor, right_motor):
+                    left_motor, right_motor = motors
+                    rumble_all(left_motor, right_motor, 1000)
 
             break_cycle = False
             try:
@@ -324,6 +372,15 @@ while True:
                             break_cycle = True
                             pattern_index = 0
                         
+                        # L3
+                        if event.button == 7:
+                            rumble_on = True
+                            switch_rumble = False
+                            all_on = False
+                            break_cycle = True
+                            pattern_index = 7
+                            print("Selected Pattern: {}".format(pattern_names[pattern_index]))
+
                         # R3
                         if event.button == 8 and enable_extra_controls:
                             set_left_click(True)
